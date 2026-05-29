@@ -418,7 +418,10 @@ function initSpeechRecognition() {
     };
 
     recognition.onend = () => { if (isListening) stopListeningState(); };
-    recognition.onresult = (e) => { calculateAccuracy(e.results[0][0].transcript); };
+    recognition.onresult = (e) => {
+        const result = e.results[0][0];
+        calculateAccuracy(result.transcript, result.confidence);
+    };
     return true;
 }
 
@@ -433,7 +436,7 @@ function stopListeningState() {
     if($('speechStatus').textContent === "Listening to your voice...") $('speechStatus').textContent = "Analysis complete.";
 }
 
-function calculateAccuracy(heardText) {
+function calculateAccuracy(heardText, confidence) {
     const currentTrack = playerControls[curIdx];
     lastCleanRawText = heardText;
     const cleanStr = str => {
@@ -457,7 +460,7 @@ function calculateAccuracy(heardText) {
             fallbackOutput += `<span style="color:#f03246; text-decoration:line-through; opacity:0.7;">${word}</span> `;
         });
         lastEvaluatedHtml = fallbackOutput.trim();
-        $('systemHeard').innerHTML = `<strong>Visual Comparison:</strong><br>${lastEvaluatedHtml}`;
+        $('systemHeard').innerHTML = `<strong>System heard:</strong><br>(no phrase recognized)<br><br><strong>Visual Comparison:</strong><br>${lastEvaluatedHtml}`;
         updateIndicatorDot(0);
         return;
     }
@@ -477,14 +480,40 @@ function calculateAccuracy(heardText) {
     const distance = getLevenshteinDistance(s1, s2);
     const maxLength = Math.max(s1.length, s2.length);
     let accuracyPercentage = Math.round(((maxLength - distance) / maxLength) * 100);
-    if (accuracyPercentage >= 92) accuracyPercentage = 100;
+    if (accuracyPercentage >= 96) accuracyPercentage = 100;
+    
+    const originalWordsClean = s1.split(/\s+/);
+    const heardWordsClean = s2.split(/\s+/);
+    const suspiciousNotes = [];
+    const confidenceValue = typeof confidence === 'number' ? confidence : 1;
+    const lengthRatio = Math.min(s1.length, s2.length) / Math.max(s1.length, s2.length);
+    const wordGap = Math.abs(originalWordsClean.length - heardWordsClean.length);
+    const minimalPairs = [
+        ['pero', 'perro'], ['caro', 'carro'], ['casa', 'caza'], ['pollo', 'poyo'],
+        ['beach', 'bitch'], ['ship', 'sheep'], ['live', 'leave'], ['full', 'fool'], ['sheet', 'shit']
+    ];
+    
+    if (confidenceValue < 0.6 && accuracyPercentage > 70) {
+        accuracyPercentage -= 8;
+        suspiciousNotes.push('low confidence');
+    }
+    if (accuracyPercentage > 85 && (lengthRatio < 0.75 || wordGap > 2)) {
+        accuracyPercentage -= 10;
+        suspiciousNotes.push('suspicious match');
+    }
+    minimalPairs.forEach(pair => {
+        if ((originalWordsClean.includes(pair[0]) && heardWordsClean.includes(pair[1])) ||
+            (originalWordsClean.includes(pair[1]) && heardWordsClean.includes(pair[0]))) {
+            accuracyPercentage -= 12;
+            suspiciousNotes.push('minimal pair');
+        }
+    });
     
     lastEvaluatedScore = Math.max(0, Math.min(accuracyPercentage, 100));
     $('accuracyText').textContent = lastEvaluatedScore + '%';
     
     updateIndicatorDot(lastEvaluatedScore);
     const originalWords = currentTrack.text.split(/\s+/);
-    const heardWordsClean = s2.split(/\s+/);
     
     let htmlOutput = "";
     originalWords.forEach(word => {
@@ -493,7 +522,8 @@ function calculateAccuracy(heardText) {
         else htmlOutput += `<span style="color:#f03246; text-decoration:line-through; opacity:0.7;">${word}</span> `;
     });
     lastEvaluatedHtml = htmlOutput.trim();
-    $('systemHeard').innerHTML = `<strong>Visual Comparison:</strong><br>${lastEvaluatedHtml}`;
+    const warningText = suspiciousNotes.length ? `<br><small style="color:#F8AC10;">Check pronunciation: ${[...new Set(suspiciousNotes)].join(', ')}</small>` : '';
+    $('systemHeard').innerHTML = `<strong>System heard:</strong><br>${heardText}<br><br><strong>Visual Comparison:</strong><br>${lastEvaluatedHtml}${warningText}`;
 }
 
 function updateIndicatorDot(score) {
