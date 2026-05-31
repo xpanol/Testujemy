@@ -12,7 +12,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Special+Elite&family=Inter:wght@300;400;700;900&family=Montserrat:wght@300;400;700;800&family=Bebas+Neue&family=Syncopate:wght@400;700&family=Ubuntu:wght@300;400;700&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
     
     <style>
-        /* 3. Tutaj mówimy przeglądarce, aby domyślnie używała fontu 'Special Elite' na całej stronie */
+        /* Default page font */
         body {
             font-family: 'Special Elite', sans-serif;
         }
@@ -117,6 +117,10 @@
             text-transform: uppercase;
         }
         .main-btn:hover { background: var(--btn-border-color); color: #000; }
+        .sha-btn:hover { background: var(--color-es) !important; color: #000 !important; }
+        #nextShaBtn:hover { color: #000 !important; }
+        #playOrigBtn:hover { color: #000 !important; }
+        #systemHeard { color: #888 !important; }
         .main-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 
         .filter-select {
@@ -141,6 +145,7 @@
         .player { margin-bottom: 40px; padding: 30px; background: transparent; }
         .player-ui { display: flex; align-items: center; gap: 25px; }
         .play-btn { background: none; border: var(--btn-border-w) solid var(--btn-border-color); color: inherit; width: 60px; height: 60px; border-radius: 50%; cursor: pointer; font-size: 22px; transition: 0.2s; }
+        .play-btn.active { background: var(--brand-border) !important; color: #000 !important; }
 
         .karaoke-line { font-size: var(--karaoke-size); line-height: 1.4; transition: 0.2s; color: var(--brand-text); }
         .karaoke-line span { transition: color 0.1s; }
@@ -467,7 +472,7 @@ function calculateAccuracy(heardText, confidence) {
         return str.toLowerCase()
             .normalize("NFD")
             .replace(/[\u0300-\u036f]/g, "")
-            .replace(/[¿¡.,\/#!$%\^&\*;:{}=\-_`~()?"'żˇżˇ«»“”指標‘’`´—–]/g, "")
+            .replace(/[¿¡.,\/#!$%\^&\*;:{}=\-_`~()?"'żˇżˇ«»“”‘’`´—–]/g, "")
             .replace(/\s+/g, ' ')
             .trim();
     };
@@ -610,7 +615,8 @@ function resetPlayers() {
     playerControls.forEach(p => { 
         p.div.style.display = 'block'; 
         p.div.classList.remove('player-done'); 
-        p.rBtn.style.display = "none"; 
+        p.rBtn.style.display = "none";
+        p.sBtn.style.display = "none";
         p.spans.forEach(s => s.style.color = 'inherit');
         if(p.dotSpan) p.dotSpan.className = "status-dot dot-none";
     });
@@ -671,6 +677,8 @@ async function addPlayer(aUrl, jUrl, type) {
         const line = document.createElement('div'); line.className = 'karaoke-line';
         const rBtn = document.createElement('button'); rBtn.className = 'main-btn';
         rBtn.textContent = 'PRO RETO'; rBtn.style.display = "none"; rBtn.style.marginTop = "15px";
+        const sBtn = document.createElement('button'); sBtn.className = 'main-btn sha-btn';
+        sBtn.textContent = 'SHA!'; sBtn.style.display = "none"; sBtn.style.marginTop = "15px"; sBtn.style.borderColor = "var(--color-es)"; sBtn.style.color = "var(--color-es)";
         
         data.forEach(l => {
             l.text.split(' ').forEach((w, j) => {
@@ -703,16 +711,20 @@ async function addPlayer(aUrl, jUrl, type) {
         infoContainer.append(dotSpan, tagSpan);
 
         const ui = document.createElement('div'); ui.className = "player-ui"; const content = document.createElement('div');
-        content.style.flex = "1"; content.append(line, infoContainer, rBtn); ui.append(pBtn, content); div.append(ui); $('players').appendChild(div);
+        const actionBtns = document.createElement('div'); actionBtns.style.display = 'flex'; actionBtns.style.gap = '10px'; actionBtns.style.flexWrap = 'wrap';
+        actionBtns.append(rBtn, sBtn);
+        content.style.flex = "1"; content.append(line, infoContainer, actionBtns); ui.append(pBtn, content); div.append(ui); $('players').appendChild(div);
         
-        const ctrl = { div, spans: line.querySelectorAll('span'), type, audio: aUrl, text: data.map(d=>d.text).join(' '), rBtn, tag: currentTag, dotSpan };
+        const ctrl = { div, spans: line.querySelectorAll('span'), type, audio: aUrl, text: data.map(d=>d.text).join(' '), rBtn, sBtn, tag: currentTag, dotSpan };
         playerControls.push(ctrl);
-        pBtn.onclick = () => { isSeq = false; play(ctrl); }; rBtn.onclick = () => openReto(ctrl);
+        pBtn.onclick = () => { isSeq = false; play(ctrl); }; rBtn.onclick = () => openReto(ctrl); sBtn.onclick = () => startShadowing(ctrl.text);
     } catch(e) {}
 }
 
 function play(p) {
     curIdx = playerControls.indexOf(p); p.div.classList.remove('player-done'); mainAudio.src = p.audio; mainAudio.play();
+    playerControls.forEach(c => c.div.querySelector('.play-btn').classList.remove('active'));
+    p.div.querySelector('.play-btn').classList.add('active');
     const clr = p.type === 'es' ? 'var(--color-es)' : 'var(--color-en)';
     const anim = () => {
         if(mainAudio.paused) return; const time = mainAudio.currentTime;
@@ -720,14 +732,14 @@ function play(p) {
         requestAnimationFrame(anim);
     };
     requestAnimationFrame(anim);
-    mainAudio.onended = () => { p.div.classList.add('player-done'); p.rBtn.style.display = "inline-block"; if(isSeq) startShadowing(p.text); };
+    mainAudio.onended = () => { p.div.classList.add('player-done'); p.div.querySelector('.play-btn').classList.remove('active'); p.rBtn.style.display = "inline-block"; p.sBtn.style.display = "inline-block"; if(isSeq) startShadowing(p.text); };
 }
 
 function startShadowing(txt) {
     if(shaInterval) clearInterval(shaInterval); $('modalSHA').style.display = 'flex'; $('shaText').textContent = txt;
     let t = 5;
     $('shaTimer').textContent = t;
-    shaInterval = setInterval(() => { t--; $('shaTimer').textContent = t; if(t <= 0 || !isSeq) { clearInterval(shaInterval); $('modalSHA').style.display = 'none'; if(isSeq) nextInSeq(); } }, 1000);
+    shaInterval = setInterval(() => { t--; $('shaTimer').textContent = t; if(t <= 0) { clearInterval(shaInterval); $('modalSHA').style.display = 'none'; if(isSeq) nextInSeq(); } }, 1000);
 }
 
 $('skipShaBtn').onclick = () => { if(shaInterval) clearInterval(shaInterval); $('modalSHA').style.display = 'none'; };
@@ -917,7 +929,7 @@ function exportReportToPDF() {
 async function downloadAllRecordingsZIP() {
     const validRecordings = sessionHistoryLog.filter(item => item.audioBlob !== null);
     if (validRecordings.length === 0) {
-        alert("Brak nagrań w tej sesji! Uruchom tryb PRO RETO, nagraj głos, a następnie pobierz plik.");
+        alert("No recordings in this session. Run PRO RETO, record your voice, then download the file.");
         return;
     }
 
@@ -935,12 +947,12 @@ async function downloadAllRecordingsZIP() {
                 const decodedBuffer = await audioCtx.decodeAudioData(arrayBuffer);
                 audioBuffers.push(decodedBuffer);
             } catch (decodeError) {
-                console.error("Pominięto plik z powodu błędu dekodowania:", decodeError);
+                console.error("Skipped file because of a decoding error:", decodeError);
             }
         }
 
         if (audioBuffers.length === 0) {
-            alert("Nie udało się zdekodować żadnego pliku audio.");
+            alert("No audio files could be decoded.");
             return;
         }
 
@@ -968,8 +980,8 @@ async function downloadAllRecordingsZIP() {
         link.click();
         document.body.removeChild(link);
     } catch (err) {
-        console.error("Błąd podczas łączenia audio:", err);
-        alert("Wystąpił błąd podczas scalania plików audio.");
+        console.error("Error while merging audio:", err);
+        alert("An error occurred while merging audio files.");
     } finally {
         changeBtn.textContent = "DOWNLOAD MY AUDIOS (WAV)";
         changeBtn.disabled = false;
@@ -1041,7 +1053,7 @@ async function init() {
             });
         }
     } catch (error) {
-        console.error("Błąd ładowania zewnętrznych tagów:", error);
+        console.error("Error loading external tags:", error);
     }
 
     for(let i=1; i<=TRACK_COUNT; i++) {
