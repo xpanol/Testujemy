@@ -1,3 +1,4 @@
+
 <!doctype html>
 <html lang="en">
 <head>
@@ -68,6 +69,25 @@
             background-repeat: no-repeat;
             filter: blur(var(--bg-blur)) brightness(var(--bg-brightness));
             z-index: -1;
+        }
+
+        #demoSticker {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 2100;
+            background: var(--brand-border);
+            color: #000;
+            border: 2px solid #000;
+            border-radius: 999px;
+            padding: 10px 18px;
+            font-family: var(--head-font);
+            font-size: 12px;
+            font-weight: 900;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+            transform: rotate(-3deg);
         }
 
         #brandingToggle { 
@@ -202,6 +222,7 @@
 <body>
 
 <div id="bg-layer"></div>
+<div id="demoSticker">DEMO</div>
 <button id="brandingToggle"> BRANDING</button>
 
 <div id="brandingPanel">
